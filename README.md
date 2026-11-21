@@ -2,6 +2,8 @@
 
 Multi-tenant web CRM for creator agencies and solo creators. Fanvue-first (metrics, inbox, QC bridge), chatter focus mode, HQ time sync, and holdco webhooks to Twenty via n8n.
 
+Staging: branch `develop` → https://crm-dev.omniofm.com (see [docs/DEV.md](docs/DEV.md)).
+
 ## Local dev
 
 ```bash

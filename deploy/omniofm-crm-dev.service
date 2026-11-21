@@ -1,0 +1,18 @@
+[Unit]
+Description=OmniOFM CRM staging (develop branch)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/var/www/omniofm-crm-dev
+EnvironmentFile=/var/www/omniofm-crm-dev/.env
+Environment=NODE_ENV=production
+Environment=PORT=3061
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
