@@ -14,6 +14,11 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+if [ ! -d "$APP_DIR" ]; then
+  mkdir -p "$APP_DIR"
+  chown deploy:deploy "$APP_DIR"
+fi
+
 if [ ! -d "$APP_DIR/.git" ]; then
   sudo -u deploy git clone "$REPO_URL" "$APP_DIR"
 else

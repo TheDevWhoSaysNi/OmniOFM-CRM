@@ -86,7 +86,7 @@ export default function IntegrationsPage() {
       return;
     }
 
-    const response = await fetch(`/api/integrations/${integrationId}/disconnect`, {
+    const response = await fetch(`/api/integrations/disconnect/${integrationId}`, {
       method: "POST",
     });
     const payload = (await response.json()) as { error?: string };
