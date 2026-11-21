@@ -4,14 +4,17 @@
 
 Fanvue does **not** use a single static “API key.” OmniOFM CRM uses a **separate Fanvue Builder app** from QC, chatbot, intro, and webhooks.
 
-1. Open [Fanvue Builder](https://api.fanvue.com/docs) and create an app, e.g. **OmniOFM CRM** (off-platform).
+1. Open [Fanvue Builder](https://api.fanvue.com/docs) and create an app, e.g. **OmniOFM CRM**. Use **API only** (basic OAuth) for a private agency CRM; **off-platform** also works and is only required if you plan an App Store listing (set App URL to `https://crm.omniofm.com`).
 2. **Redirect URI:** `https://crm.omniofm.com/api/integrations/fanvue/callback`
 3. **Scopes (agency workspace):** include at least  
    `openid offline_access read:agency read:creator read:insights read:chat read:fan write:chat`
-4. Copy **Client ID** and **Client secret** into on the VPS `/var/www/omniofm-crm/.env`:
-   - `FANVUE_CLIENT_ID`
-   - `FANVUE_CLIENT_SECRET`
-5. `systemctl restart omniofm-crm`
+4. On the **Omni VPS only** (`/var/www/omniofm-crm/.env`):
+   - `FANVUE_CLIENT_ID` (already set for production)
+   - `FANVUE_CLIENT_SECRET` — SSH to the server and run:
+     `bash /var/www/omniofm-crm/deploy/set-fanvue-secret-on-vps.sh`
+     (prompt is on the VPS; nothing is stored on your PC)
+   - Or edit with `nano /var/www/omniofm-crm/.env` as root/deploy, then `systemctl restart omniofm-crm`
+5. Audit: `bash /var/www/omniofm-crm/deploy/check-env-on-vps.sh`
 6. In the CRM: **Integrations → Connect Fanvue** (admin login).
 
 Omni’s metrics can use the **QC bridge** (already wired on the VPS) when the workspace was registered with **Use QC data bridge**. Fanvue OAuth is still required for chatter **inbox** (`write:chat`).
@@ -26,6 +29,8 @@ No global Telegram “API key” for the platform. You need a **bot**:
 4. Optional: add funnel rules in the same UI.
 
 You can use a **dedicated** bot for CRM or a separate one from `omni-telegram-bot` on the VPS; do not reuse tokens across unrelated products unless you intend one bot for both.
+
+Contractor specs: [docs/integrations/STACKED.md](integrations/STACKED.md), [ONLYFANS.md](integrations/ONLYFANS.md), [TELEGRAM.md](integrations/TELEGRAM.md).
 
 ## Stacked (wait)
 

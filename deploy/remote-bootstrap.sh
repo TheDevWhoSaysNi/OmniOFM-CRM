@@ -68,7 +68,7 @@ FANVUE_CLIENT_SECRET=
 FANVUE_REDIRECT_URI=https://crm.omniofm.com/api/integrations/fanvue/callback
 FANVUE_API_VERSION=2025-06-26
 
-QC_BRIDGE_BASE_URL=https://fanvue-qc.omniofm.com
+QC_BRIDGE_BASE_URL=http://127.0.0.1:3030
 QC_BRIDGE_SERVICE_TOKEN=${BRIDGE_TOKEN}
 
 HQ_API_BASE_URL=https://omniofm.com

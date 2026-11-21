@@ -1,5 +1,12 @@
 # Agent notes — OmniOFM CRM
 
+
+## For Cursor agents
+
+1. **User Rules:** Cursor loads Customize → Rules → User on every chat. Follow them (short replies by default, loop index `ni` in Ryan-owned code, no em dashes in customer-facing copy, run commands yourself unless blocked).
+2. **Operator doc:** On Ryan's PC, read `C:\Users\Ryan\.cursor\AGENTS.md` for machines, secrets, fleet, and global never-do (not in git).
+3. **This file:** Repo-specific ops only. Keep answers brief unless Ryan asks for depth.
+
 ## Fanvue API (do not guess)
 
 1. Start at https://api.fanvue.com/docs/llms.txt
