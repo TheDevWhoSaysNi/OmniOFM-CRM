@@ -1,0 +1,18 @@
+[Unit]
+Description=OmniOFM CRM (Next.js)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=deploy
+Group=deploy
+WorkingDirectory=/var/www/omniofm-crm
+EnvironmentFile=/var/www/omniofm-crm/.env
+Environment=NODE_ENV=production
+Environment=PORT=3060
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

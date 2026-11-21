@@ -1,0 +1,375 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceKind {
+  AGENCY
+  CREATOR
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  QC
+  CHATTER
+  CREATOR_VIEW
+}
+
+enum IntegrationProvider {
+  FANVUE
+  ONLYFANS
+  FANSLY
+  STACKED
+  TELEGRAM
+}
+
+enum PlatformCapability {
+  METRICS
+  INBOX
+  MEDIA
+}
+
+enum OAuthStatus {
+  DISCONNECTED
+  CONNECTED
+  ERROR
+  SYNCING
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+  PURGED
+}
+
+enum WorkspaceStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum NotificationChannel {
+  EMAIL
+  PUSH
+}
+
+enum NotificationType {
+  INACTIVITY_WARNING
+  DEACTIVATION_NOTICE
+  PURGE_NOTICE
+}
+
+model Workspace {
+  id                     String                  @id @default(cuid())
+  name                   String
+  kind                   WorkspaceKind           @default(AGENCY)
+  status                 WorkspaceStatus         @default(ACTIVE)
+  useQcDataBridge        Boolean                 @default(false)
+  qcAgencyUuid           String?
+  suspendedAt            DateTime?
+  deactivatedAt          DateTime?
+  lastActivityAt         DateTime?
+  users                  User[]
+  integrations           IntegrationConnection[]
+  platformAccounts       PlatformAccount[]
+  creators               Creator[]
+  creatorAssignments     CreatorAssignment[]
+  webhookEvents          WebhookEvent[]
+  activitySessions       ActivitySession[]
+  shiftSessions          ShiftSession[]
+  fanvueSyncStates       FanvueSyncState[]
+  telegramBotConfig      TelegramBotConfig?
+  telegramRules          TelegramFunnelRule[]
+  notifications          NotificationLog[]
+  purgeArchives          PurgeArchive[]
+  auditLogs              AuditLog[]
+  holdcoEventOutbox      HoldcoEventOutbox[]
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+
+  @@index([status, lastActivityAt])
+  @@index([kind])
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  workspaceId         String
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email               String               @unique
+  passwordHash        String
+  displayName         String?
+  status              UserStatus           @default(ACTIVE)
+  removedReason       String?
+  suspendedAt         DateTime?
+  deactivatedAt       DateTime?
+  scheduledPurgeAt    DateTime?
+  purgedAt            DateTime?
+  lastActiveAt        DateTime?
+  phoneNumber         String?
+  pushToken           String?
+  emailNotifications  Boolean              @default(true)
+  pushNotifications   Boolean              @default(true)
+  emailVerifiedAt     DateTime?
+  role                UserRole             @default(CHATTER)
+  activitySessions    ActivitySession[]
+  shiftSessions       ShiftSession[]
+  creatorAssignments  CreatorAssignment[]
+  passwordResetTokens PasswordResetToken[]
+  notifications       NotificationLog[]
+  purgeArchives       PurgeArchive[]
+  auditLogs           AuditLog[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  @@index([workspaceId, role])
+  @@index([status, lastActiveAt])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+model Creator {
+  id                String              @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  platform          IntegrationProvider @default(FANVUE)
+  externalUuid      String
+  handle            String?
+  displayName       String?
+  metadata          Json?
+  assignments       CreatorAssignment[]
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([workspaceId, platform, externalUuid])
+  @@index([workspaceId])
+}
+
+model CreatorAssignment {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creatorId   String
+  creator     Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([creatorId, userId])
+  @@index([workspaceId, userId, isActive])
+}
+
+model PlatformAccount {
+  id          String                @id @default(cuid())
+  workspaceId String
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider    IntegrationProvider
+  status      OAuthStatus           @default(DISCONNECTED)
+  capabilities PlatformCapability[]
+  externalId  String?
+  metadata    Json?
+  lastSyncAt  DateTime?
+  lastError   String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([workspaceId, provider])
+  @@index([workspaceId, status])
+}
+
+model IntegrationConnection {
+  id                    String              @id @default(cuid())
+  workspaceId           String
+  workspace             Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider              IntegrationProvider
+  status                OAuthStatus         @default(DISCONNECTED)
+  externalAccountId     String?
+  accessTokenEncrypted  String?
+  refreshTokenEncrypted String?
+  tokenExpiresAt        DateTime?
+  scopes                Json?
+  metadata              Json?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@unique([workspaceId, provider, externalAccountId])
+  @@index([workspaceId, provider])
+}
+
+model FanvueSyncState {
+  id                   String    @id @default(cuid())
+  workspaceId          String
+  workspace            Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lastCreatorsSyncAt   DateTime?
+  lastChatsSyncAt      DateTime?
+  lastEarningsSyncAt   DateTime?
+  backfillStatus       String?
+  lastError            String?
+  metadata             Json?
+  updatedAt            DateTime  @updatedAt
+  createdAt            DateTime  @default(now())
+
+  @@unique([workspaceId])
+}
+
+model WebhookEvent {
+  id             String              @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider       IntegrationProvider
+  idempotencyKey String              @unique
+  eventType      String?
+  payload        Json
+  status         WebhookStatus       @default(RECEIVED)
+  errorMessage   String?
+  receivedAt     DateTime            @default(now())
+  processedAt    DateTime?
+
+  @@index([workspaceId, provider, receivedAt])
+}
+
+model ActivitySession {
+  id              String      @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clockInAt       DateTime
+  clockOutAt      DateTime?
+  totalMessages   Int         @default(0)
+  totalSalesCents Int         @default(0)
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@index([workspaceId, userId, clockInAt])
+}
+
+model ShiftSession {
+  id                 String      @id @default(cuid())
+  workspaceId        String
+  workspace          Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activitySessionId  String?     @unique
+  clockInAt          DateTime
+  clockOutAt         DateTime?
+  qcValidatedMsgs    Int?
+  qcValidatedAt      DateTime?
+  hqMinutesSynced    Int?
+  notes              String?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([workspaceId, userId, clockInAt])
+}
+
+model TelegramBotConfig {
+  id                String      @id @default(cuid())
+  workspaceId       String      @unique
+  workspace         Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  botTokenEncrypted String
+  botUsername       String?
+  webhookSecret     String?
+  webhookUrl        String?
+  isEnabled         Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model TelegramFunnelRule {
+  id             String               @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  triggerKeyword String
+  targetProvider IntegrationProvider
+  targetLabel    String?
+  isDefault      Boolean              @default(false)
+  isActive       Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([workspaceId, isActive])
+}
+
+model HoldcoEventOutbox {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  eventType    String
+  payload      Json
+  deliveredAt  DateTime?
+  lastError    String?
+  attempts     Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  @@index([workspaceId, deliveredAt])
+  @@index([eventType, createdAt])
+}
+
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actorUserId String?
+  actorUser   User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String
+  targetType  String?
+  targetId    String?
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+}
+
+model NotificationLog {
+  id          String              @id @default(cuid())
+  workspaceId String
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel     NotificationChannel
+  type        NotificationType
+  message     String
+  deliveredAt DateTime?
+  metadata    Json?
+  createdAt   DateTime            @default(now())
+
+  @@index([workspaceId, userId, type, createdAt])
+}
+
+model PurgeArchive {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  originalUserId String
+  archivedData   Json
+  archivedAt     DateTime  @default(now())
+  hardDeletedAt  DateTime?
+  metadata       Json?
+
+  @@index([workspaceId, originalUserId, archivedAt])
+}
