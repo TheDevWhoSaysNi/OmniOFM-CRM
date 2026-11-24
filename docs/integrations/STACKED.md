@@ -26,7 +26,12 @@ STACKED_API_BASE_URL=https://api.stacked.com
 STACKED_CLIENT_ID=
 STACKED_CLIENT_SECRET=
 STACKED_REDIRECT_URI=https://crm.omniofm.com/api/integrations/stacked/callback
+STACKED_API_KEY=
+STACKED_WEBHOOK_SECRET=
 ```
+
+`STACKED_API_KEY` is the agency `stk_live_...` bearer (Omni operator use / smoke tests until per-workspace connect ships).
+`STACKED_WEBHOOK_SECRET` verifies inbound Stacked webhooks at `/api/webhooks/stacked` (not implemented yet).
 
 Agency API keys may alternatively be stored encrypted per workspace (like Telegram bot token).
 
