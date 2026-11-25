@@ -35,6 +35,13 @@ const envSchema = z.object({
   ONLYFANS_REDIRECT_URI: z.string().url().optional(),
   ONLYFANS_WEBHOOK_SECRET: z.string().optional(),
 
+  STACKED_API_BASE_URL: z.string().url().default("https://api.stacked.com"),
+  STACKED_CLIENT_ID: z.string().optional(),
+  STACKED_CLIENT_SECRET: z.string().optional(),
+  STACKED_REDIRECT_URI: z.string().url().optional(),
+  STACKED_API_KEY: optionalSecret,
+  STACKED_WEBHOOK_SECRET: optionalSecret,
+
   QC_BRIDGE_BASE_URL: optionalUrl,
   QC_BRIDGE_SERVICE_TOKEN: optionalSecret.pipe(z.string().min(16).optional()),
 

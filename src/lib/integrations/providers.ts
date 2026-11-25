@@ -79,8 +79,12 @@ export function getOAuthConfig(
   };
 }
 
-export function getWebhookSecret(provider: "fanvue" | "onlyfans"): string | undefined {
-  return provider === "fanvue" ? env.FANVUE_WEBHOOK_SECRET : env.ONLYFANS_WEBHOOK_SECRET;
+export function getWebhookSecret(
+  provider: "fanvue" | "onlyfans" | "stacked"
+): string | undefined {
+  if (provider === "fanvue") return env.FANVUE_WEBHOOK_SECRET;
+  if (provider === "stacked") return env.STACKED_WEBHOOK_SECRET;
+  return env.ONLYFANS_WEBHOOK_SECRET;
 }
 
 export const COMING_SOON_PLATFORMS = ["fansly", "stacked"] as const;

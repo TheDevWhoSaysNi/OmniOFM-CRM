@@ -10,7 +10,8 @@ Prepare OmniOFM CRM for **Stacked** External API integration. We do **not** have
 
 ## Tasks
 
-- [ ] Add `STACKED_*` env vars to `src/lib/env.ts` (base URL, client id/secret, redirect URI)
+- [x] Add `STACKED_*` env vars to `src/lib/env.ts` (base URL, client id/secret, redirect, API key, webhook secret)
+- [ ] **TODO:** Implement Stacked webhook ingest + document how to obtain `STACKED_WEBHOOK_SECRET` from Stacked dashboard
 - [ ] Implement Stacked OAuth connect + callback (PKCE S256, same pattern as Fanvue) **or** per-workspace API key connect if we choose `stk_live_` path first
 - [ ] Encrypted token storage on `IntegrationConnection`; set `PLATFORM_CONNECTORS` Stacked status to `live` when server config present
 - [ ] Smoke test helper: `GET /external-service/v1/creators` after connect (no keys in tests)

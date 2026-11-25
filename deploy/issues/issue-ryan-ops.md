@@ -4,12 +4,10 @@ Ryan operator checklist: credentials and vendor access so Umer/Owais can finish 
 
 ## Stacked
 
-- [ ] Request **External API access** on Stacked (agency/creator account as appropriate)
-- [ ] Choose path: `stk_live_` API key **or** Developer OAuth app (internal-only app is fine for Omni CRM)
-- [ ] When approved, set on VPS `/var/www/omniofm-crm/.env`:
-  - `STACKED_CLIENT_ID` / `STACKED_CLIENT_SECRET` (OAuth), or document API-key-per-workspace approach with devs
-- [ ] Redirect (when OAuth): `https://crm.omniofm.com/api/integrations/stacked/callback`
-- [ ] `systemctl restart omniofm-crm`
+- [x] **External API** + **Connect Stacked** OAuth app on VPS `.env` (`STACKED_CLIENT_ID`, `STACKED_CLIENT_SECRET`, `STACKED_API_KEY`)
+- [x] Redirect: `https://crm.omniofm.com/api/integrations/stacked/callback`
+- [ ] **TODO:** `STACKED_WEBHOOK_SECRET` (blank on VPS until Stacked webhook signing secret is issued; wire `GET/POST /api/webhooks/stacked` in issue-stacked-dev)
+- [ ] Restart after secret: `systemctl restart omniofm-crm`
 
 ## OnlyFans
 
