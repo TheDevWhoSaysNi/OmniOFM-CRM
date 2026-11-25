@@ -1,0 +1,132 @@
+# OmniOFM CRM — Product & Functionality Spec
+
+**OmniOFM CRM** (`crm.omniofm.com`) is the **central agency & creator operations hub and chatting UI** (comparable to **Infloww**, **CreatorHero**, and Fanvue's native agency chat view).
+
+It is a **separate product, separate login, separate UI, and separate billing** from [`OmniOFM-Chatbot`](https://github.com/suncoast-servers/OmniOFM-Chatbot). Users can run `OmniOFM-Chatbot` alone for automation, or pay for `OmniOFM-CRM` to manage all chatting, team shifts, earnings, analytics, vault media, and connected services in one workspace.
+
+---
+
+## 1. Design & UI Architecture
+
+- **UI System:** Clean **default shadcn/ui** + Tailwind CSS v4 (standard neutral palette, sidebar layout, data tables, sheets, popovers, dialogs, and charts — intentionally distinct from `OmniOFM-Chatbot`'s custom theme).
+- **Route Prefix:** Dedicated CRM routes under `/crm/*` (or root of `crm.omniofm.com`):
+  - Public / Auth: `/crm/login`, `/crm/signup`, `/crm/invites/[token]`
+  - Workspace Onboarding: `/crm/new`, `/crm/[ws]/connect`
+  - Workspace App: `/crm/[ws]` (Overview & Earnings), `/crm/[ws]/inbox`, `/crm/[ws]/creators`, `/crm/[ws]/vault`, `/crm/[ws]/campaigns` (Mass DMs & Scripts), `/crm/[ws]/analytics`, `/crm/[ws]/connections`, `/crm/[ws]/team`, `/crm/[ws]/billing`, `/crm/[ws]/settings`
+
+---
+
+## 2. Suncoast / OmniOFM Product Ecosystem
+
+`OmniOFM-CRM` acts as the **central connection & visibility hub** across the client's products and external creator platforms:
+
+| Category | Product / Repo | Connection Method | What CRM Shows / Controls |
+|---|---|---|---|
+| **Creator Platforms** | **Fanvue** | OAuth 2.0 (PKCE) + Webhooks | Live multi-creator inbox, vault, PPVs, tips, earnings, subscribers |
+| | **Stacked** | OAuth 2.0 (PKCE) or `stk_live_` API key + Webhooks | Creator inbox, chats, messages, creators list |
+| | **OnlyFans** | Approved vendor API / Bridge (TBD) | Inbox, fan spend, vault, earnings sync |
+| | **Telegram** | BotFather Token + Webhook | Inbound fan DMs & creator replies |
+| **Chat Automation** | [`OmniOFM-Chatbot`](https://github.com/suncoast-servers/OmniOFM-Chatbot) | Service Token (`X-Omni-Service-Token`) | Provision workspace, enable/disable bot per creator/chat, handoff alerts, credit balance |
+| | **External Chatbots** | Bridge Webhook / API Key (`CHATBOT_BRIDGE.md`) | Connect third-party AI bots, toggle automation on/off per thread |
+| **Ops & Quality** | [`fanvue-agency-qc`](https://github.com/suncoast-servers/fanvue-agency-qc) | Service Token (`CRM_BRIDGE_SERVICE_TOKEN`) | Chatter shift sessions, HQ hour sync, QA scores & flags |
+| | [`fanvue-intro-followups`](https://github.com/suncoast-servers/fanvue-intro-followups) | Service Token / Webhook | New subscriber follow-up status |
+| **Media & Traffic** | [`NiRepurpose-Pro`](https://github.com/suncoast-servers/NiRepurpose-Pro) / [`NiClean-web`](https://github.com/suncoast-servers/NiClean-web) | API Key / Webhook (optional phase 2) | Cleaned/repurposed assets pushed to CRM Vault |
+| | [`usaphones.io`](https://github.com/suncoast-servers/usaphones.io) / [`aiophones.io`](https://github.com/suncoast-servers/aiophones.io) / [`usaproxies.io`](https://github.com/suncoast-servers/usaproxies.io) | Read-only API / Traffic Attribution (phase 2) | Social account health & traffic attribution to subscriber conversions |
+| **Billing** | `@omniofm/entitlement` | Service API Key | CRM subscription/seat status + shared Chatbot credit balance visibility |
+
+---
+
+## 3. Roles & Permissions
+
+One user can belong to multiple CRM workspaces with a different role in each. Chatters can be scoped to **specific creators** so they never see unassigned creators or agency billing.
+
+| Role | Scope | Permissions |
+|---|---|---|
+| **Owner** | Whole workspace | Everything: billing, workspace deletion, ownership transfer, all admins/settings |
+| **Admin** | Whole workspace | Connect/disconnect platforms & services, manage creators, invite/assign team, view full earnings |
+| **Manager** | Assigned or all creators | Monitor chatter shifts & QC, manage scripts/vault/mass DMs, toggle connected chatbots, view creator analytics |
+| **Chatter** | Assigned creators only | Reply in `/crm/[ws]/inbox`, send Vault/PPV media, use saved scripts, view fan spend panel, log shift hours (no billing, no credential export, no raw Vault file download) |
+
+---
+
+## 4. Functional Requirements
+
+### F1 — Authentication, Signup & Workspaces (`/crm/login`, `/crm/signup`)
+- **F1.1** Separate CRM user sessions (Google OAuth + optional email/password or magic link; `httpOnly` secure session cookie).
+- **F1.2** Self-serve signup wizard (`/crm/new`): create agency/creator workspace → connect first platform or service → invite team.
+- **F1.3** Team invites by email with accept/decline flow, role selection, and creator assignment matrix.
+
+### F2 — Multi-Method Connections Hub (`/crm/[ws]/connections`)
+A unified integration catalog allowing clients to connect all external platforms and internal/partner websites using the right method per service:
+- **OAuth 2.0 (PKCE S256):** Fanvue, Stacked (with reconnect, scope verification, and connection health status).
+- **API Key / Bot Token:** Stacked `stk_live_` key, Telegram BotFather token, OnlyFans vendor key.
+- **Service-to-Service Token:** `OmniOFM-Chatbot` (`CRM_BASE_URL` + `X-Omni-Service-Token` provisioning), `fanvue-agency-qc`, `fanvue-intro-followups`.
+- **Custom Webhook / External Chatbot Bridge:** Paste endpoint URL + signing secret to connect any third-party chatbot or website into the CRM.
+- Every connection card displays: **Status** (`Connected`, `Needs reconnect`, `Error`, `Coming soon`), **Last synced**, **Connected account**, and **Disconnect / Re-auth** controls (no secrets ever rendered back to the client).
+
+### F3 — Unified Multi-Creator Chatting Inbox (`/crm/[ws]/inbox`)
+Infloww / CreatorHero-style high-speed workstation:
+- **F3.1** Multi-creator conversation list with instant search, creator filter, platform badge, and smart tabs (`All`, `Unread`, `Needs human / Handoff`, `Whales / Top spenders`, `Online now`).
+- **F3.2** Keyboard-first composer: rich emoji & GIF picker, Vault media picker, PPV price input, quoted reply, and script `/` autocomplete.
+- **F3.3** Live updates via platform webhooks + SSE push (`localStorage` cache for instant switching between threads).
+- **F3.4** Per-thread bot switch: pause/resume **OmniOFM Chatbot** (or external bot) right inside the chat header; manual chatter reply automatically switches thread to human control.
+
+### F4 — Fan Spender Intelligence Sidebar
+Displayed next to the active thread so chatters never sell blind:
+- Lifetime spend (subscriptions, tips, PPV unlocks, messages), highest purchase, and renewal/expiry status.
+- Custom fan tags (`VIP`, `Whale`, `Time waster`, preferences) and shared private chatter notes.
+- Purchase history list showing which PPV sets the fan has already bought vs. ignored.
+
+### F5 — Vault & Purchase-Safe Media (`/crm/[ws]/vault`)
+- Centralized media library synced from connected platforms (Fanvue Vault) and uploaded assets.
+- **Anti-leak & anti-duplicate rules:** Chatters can preview and attach Vault media in chat **without raw download permissions**; UI flags media a fan has **already purchased** so chatters don't re-pitch owned content.
+- Tagging by set, theme, price tier, and conversion rate.
+
+### F6 — Scripts, Campaigns & Mass Messaging (`/crm/[ws]/campaigns`)
+- **Saved Scripts / Playbooks:** Categorized message templates and multi-step PPV upsell flows accessible inside the inbox via `/` shortcuts.
+- **Mass Messaging:** Target smart fan segments (all subs, expired, non-spenders, VIPs, online now) with optional PPV pricing, scheduled sends, and auto-unsend timers.
+
+### F7 — Earnings & Analytics (`/crm/[ws]`, `/crm/[ws]/analytics`)
+Comprehensive financial and operational tracking across all connected platforms:
+- **Earnings breakdown:** Gross vs. net revenue by platform, by creator, and by source (`Subscriptions`, `Tips`, `PPV Messages`, `Posts`).
+- **Time-series & comparisons:** Today, 7d, 30d, custom date range, top-earning creators, and top-spending fans.
+- **Chatter performance:** Messages sent, response time, PPVs sent vs. unlocked, conversion %, and revenue generated per chatter/shift.
+- **Automation & Credit usage:** Auto-replies sent vs. human handoffs, plus shared credit balance read from `@omniofm/entitlement` (never duplicated).
+
+### F8 — Chatter Shifts & QC Sync
+- Integration with `fanvue-agency-qc` (`CRM_BRIDGE_SERVICE_TOKEN`) for shift clock-in/out, HQ hours sync, and quality-control flags visible to Managers/Admins.
+
+### F9 — Chatbot Bridge (`OmniOFM-Chatbot` + External Bots)
+- Implements `OmniOFM-CRM#1` contract:
+  - Calls `POST /internal/crm/provision` on `OmniOFM-Chatbot` with `X-Omni-Service-Token` to bind `crmWorkspaceId` and `entitlementCustomerId`.
+  - Calls `POST /internal/crm/enabled` to globally enable/disable bot automation for a workspace.
+  - Displays Chatbot credit balance from `@omniofm/entitlement` and surfaces bot-triggered handoffs inside `/crm/[ws]/inbox`.
+
+---
+
+## 5. Screen Inventory (Default shadcn/ui)
+
+| Route | Purpose | Minimum Role |
+|---|---|---|
+| `/crm/login` & `/crm/signup` | Separate CRM auth (Google + email/password) | Public |
+| `/crm/new` | Workspace creation & first connection wizard | Signed-in |
+| `/crm/[ws]` | Executive overview: today's earnings, active chats, handoffs, creator KPIs | Chatter+ (scoped) |
+| `/crm/[ws]/inbox` | Multi-creator chatting UI + fan spend sidebar + Vault/Scripts drawers | Chatter+ |
+| `/crm/[ws]/creators` | Roster status, platform links, chatter assignments, bot toggles | Manager+ |
+| `/crm/[ws]/vault` | Media library, tags, conversion stats, purchase-safe previews | Chatter+ (upload: Manager+) |
+| `/crm/[ws]/campaigns` | Mass messages, smart lists, saved scripts | Manager+ |
+| `/crm/[ws]/analytics` | Earnings by creator/source/platform, chatter shift & revenue analytics | Manager+ |
+| `/crm/[ws]/connections` | Connect Fanvue, Stacked, OnlyFans, Telegram, Chatbot, QC, external services | Admin+ |
+| `/crm/[ws]/team` | Invites, roles, per-creator chatter access, shift logs | Admin+ |
+| `/crm/[ws]/billing` | CRM plan/seats + read-only Chatbot credit balance link | Owner / Admin |
+| `/crm/[ws]/settings` | Workspace settings & danger zone | Owner / Admin |
+
+---
+
+## 6. Open Questions for Ryan (before CRM build)
+
+1. **Reference priority:** Demo login or screenshots for **Infloww** / **CreatorHero** — which exact inbox/spender/script screens should CRM v1 mirror first?
+2. **v1 Platform & Service scope:** Launch with **Fanvue + OmniOFM Chatbot + QC** first, and add Stacked / OnlyFans / Telegram / external chatbot bridges in phase 2?
+3. **Auth:** Google-only login (like `OmniOFM-Chatbot`), or also email/password for hired chatters?
+4. **Hosting & DB:** Confirm `crm.omniofm.com`, VPS port, and separate Neon Postgres database.
+5. **Billing:** How will CRM itself be billed in `@omniofm/entitlement` (per seat, per creator, or flat monthly tier)?

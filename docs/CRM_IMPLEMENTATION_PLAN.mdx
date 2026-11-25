@@ -1,0 +1,120 @@
+# OmniOFM CRM — Implementation Plan
+
+Companion to [`CRM_FUNCTIONALITY.mdx`](./CRM_FUNCTIONALITY.mdx) and [`OmniOFM-CRM#1`](https://github.com/suncoast-servers/OmniOFM-CRM/issues/1).
+
+---
+
+## Architecture & Stack
+
+- **Monorepo Layout:**
+  - `apps/web` — Next.js App Router + **default shadcn/ui** + Tailwind CSS v4 (clean neutral SaaS theme, `/crm/*` routes)
+  - `apps/api` — Express + TypeScript API, **PostgreSQL (Neon)** via `pg`, **Firebase Admin SDK** for auth verification, **SSE** live updates
+  - `packages/core` — Shared TypeScript types, role/permission guards, crypto (AES-256-GCM), platform clients (Fanvue, Stacked, Telegram, OnlyFans bridge), and service-bridge contracts
+- **Authentication (Firebase Auth + Session Cookie):**
+  - Client signs in with **Firebase Auth** (Google Sign-In + Email/Password for agency owners, managers, and chatters).
+  - Frontend sends the Firebase ID token to `POST /api/crm/auth/session`; `apps/api` verifies it with **Firebase Admin (`verifyIdToken`)**, upserts the `users` row in Postgres, and sets an `httpOnly`, `SameSite=Lax`, `Secure` session cookie.
+  - Separate Firebase project/session namespace or separate CRM cookie (`crm_session`) so CRM logins stay isolated from `OmniOFM-Chatbot`.
+- **Database & Storage (PostgreSQL / Neon + S3/R2):**
+  - **PostgreSQL (Neon)** with versioned SQL migrations (`migrations/001_init.sql`, etc.).
+  - All OAuth tokens, platform API keys, and service bridge secrets are encrypted at rest with **AES-256-GCM** (`TOKEN_ENCRYPTION_KEY`); plaintext secrets are never logged or returned to the client.
+  - **S3 / Cloudflare R2** (presigned URLs) for CRM Vault assets, thumbnails, and purchase-safe chatter previews.
+- **Security & Isolation:**
+  - Separate database, separate login, and separate billing from `OmniOFM-Chatbot`.
+  - Role + per-creator scoping enforced on every API route (`owner`, `admin`, `manager`, `chatter`).
+
+---
+
+## Phase 1 — Repo Scaffold, Firebase Auth, Postgres Schema & Roles
+
+**Goal:** Users can sign up/log in via Firebase Auth, create a CRM workspace in Postgres, and invite a team with creator-scoped roles.
+
+1. **Scaffold monorepo, env & UI:**
+   - Initialize `package.json` workspaces (`apps/web`, `apps/api`, `packages/core`), TypeScript config, and `.env.example` (`DATABASE_URL`, `FIREBASE_*`, `NEXT_PUBLIC_FIREBASE_*`, `TOKEN_ENCRYPTION_KEY`, `SESSION_SECRET`, `S3_*`, `ENTITLEMENT_*`).
+   - Set up `apps/web` with **default shadcn/ui** (`Sidebar`, `Card`, `Table`, `Dialog`, `Sheet`, `Popover`, `Select`, `Tabs`, `Badge`, `Input`, `Button`, `Tooltip`).
+2. **PostgreSQL schema (`migrations/001_init.sql`):**
+   - `users` (`id`, `firebase_uid`, `email`, `name`, `photo_url`, `created_at`, `last_seen_at`)
+   - `sessions` (`id`, `user_id`, `token_hash`, `expires_at`)
+   - `workspaces` (`id`, `name`, `owner_user_id`, `entitlement_account_id`, `created_at`)
+   - `workspace_members` (`workspace_id`, `user_id`, `role`: `owner | admin | manager | chatter`, `joined_at`)
+   - `workspace_invites` (`id`, `workspace_id`, `email`, `role`, `invited_by`, `status`, `created_at`)
+   - `creator_assignments` (`workspace_id`, `creator_id`, `user_id` — restricts chatters to assigned creators)
+3. **Auth & Workspace routes:**
+   - `/crm/login`, `/crm/signup` (Firebase Google Sign-In + Email/Password).
+   - `POST /api/crm/auth/session`, `POST /api/crm/auth/logout`, `GET /api/crm/me`.
+   - `/crm/new` (workspace creation wizard), `/crm/[ws]/team` (email invites with MX/typo validation, role selector, creator access matrix), and `/crm/[ws]/settings`.
+
+---
+
+## Phase 2 — Multi-Method Connections Hub (`/crm/[ws]/connections`)
+
+**Goal:** Clients can connect all supported platforms and external/Suncoast services from one screen.
+
+1. **Database schema (`migrations/002_connections.sql`):**
+   - `platform_connections` (`id`, `workspace_id`, `platform`: `fanvue | stacked | onlyfans | telegram`, `auth_method`: `oauth_pkce | api_key | bot_token`, `access_token_enc`, `refresh_token_enc`, `webhook_secret_enc`, `status`, `expires_at`, `last_synced_at`)
+   - `service_connections` (`id`, `workspace_id`, `service_type`: `omniofm_chatbot | external_chatbot | fanvue_agency_qc | fanvue_intro_followups | nirepurpose | usaphones`, `base_url`, `token_enc`, `webhook_secret_enc`, `status`, `config_json`)
+   - `creators` (`id`, `workspace_id`, `platform_connection_id`, `platform`, `external_creator_id`, `handle`, `display_name`, `avatar_url`, `synced_at`)
+2. **Connection flows:**
+   - **OAuth 2.0 PKCE:** Fanvue & Stacked (`/oauth/fanvue/*`, `/oauth/stacked/*`, scope check, reconnect, disconnect).
+   - **API Key / Bot Token:** Stacked `stk_live_` key, Telegram BotFather token, OnlyFans vendor credentials.
+   - **Service Tokens & Webhooks:** `OmniOFM-Chatbot` (`X-Omni-Service-Token`), `fanvue-agency-qc` (`CRM_BRIDGE_SERVICE_TOKEN`), and custom external chatbot bridge endpoints.
+3. **Connections UI:**
+   - Categorized integration cards (Platforms, Chatbots, Ops & QC, Media & Traffic) with live status badges, reconnect/disconnect actions, and clear setup drawers.
+
+---
+
+## Phase 3 — Unified Inbox, Fan Spender Panel & Vault
+
+**Goal:** Infloww / CreatorHero-style multi-creator chatting experience with purchase-safe Vault access.
+
+1. **Unified Inbox (`/crm/[ws]/inbox`) & Postgres tables (`migrations/003_inbox_vault.sql`):**
+   - Tables: `conversations` (`workspace_id`, `creator_id`, `platform`, `fan_external_id`, `fan_handle`, `total_spend_cents`, `tags`, `notes`, `bot_paused`), `vault_assets` (`workspace_id`, `creator_id`, `s3_key`, `platform_media_id`, `media_type`, `price_cents`, `tags`), `fan_purchases` (`conversation_id`, `vault_asset_id`, `amount_cents`, `purchased_at`).
+   - Multi-creator conversation list with instant search, creator/platform filters, and tabs (`All`, `Unread`, `Needs human`, `Whales`, `Online`).
+   - `localStorage` + memory cache + SSE stream (`/api/crm/[ws]/stream`) fed by platform webhooks for real-time updates.
+   - Composer with text, emojis, GIFs, Vault media picker, PPV pricing, quoted replies, and `/` script autocomplete.
+   - Per-thread **Chatbot toggle** (pauses/resumes `OmniOFM-Chatbot` or connected external bot; manual reply hands control to human).
+2. **Fan Spender Intelligence Panel:**
+   - Lifetime spend, tips, PPV unlock count, subscription renewal status, custom tags (`VIP`, `Whale`), and shared chatter notes.
+   - Owned vs. unpurchased media tracking.
+3. **Vault (`/crm/[ws]/vault` & `/crm/[ws]/creators`):**
+   - Synced platform Vault + uploaded assets with tags and price tiers.
+   - Permissioned preview/attach for `chatter` role (no raw download URLs exposed; flags media already bought by the active fan).
+
+---
+
+## Phase 4 — Earnings, Analytics, Scripts & Campaigns
+
+**Goal:** Full visibility into agency revenue, chatter performance, and reusable sales campaigns.
+
+1. **Postgres schema (`migrations/004_analytics_campaigns.sql`):**
+   - `earnings_events` (`workspace_id`, `creator_id`, `platform`, `source`: `subscription | tip | ppv | post`, `gross_cents`, `net_cents`, `fan_external_id`, `chatter_user_id`, `occurred_at`)
+   - `chatter_shifts` (`workspace_id`, `user_id`, `creator_id`, `started_at`, `ended_at`, `qc_score`, `qc_notes`)
+   - `scripts` (`workspace_id`, `category`, `shortcut`, `body`, `default_price_cents`), `mass_campaigns` (`workspace_id`, `creator_id`, `segment_filter`, `body`, `media_ids`, `price_cents`, `scheduled_at`, `unsend_after_min`, `status`)
+2. **Executive Overview & Analytics (`/crm/[ws]`, `/crm/[ws]/analytics`):**
+   - Gross/net revenue breakdown by platform, creator, and source (`Subscriptions`, `Tips`, `PPV Messages`, `Posts`).
+   - Date-range charts (`Today`, `7d`, `30d`, custom), top creators, and top spending fans.
+   - **Chatter & Shift Analytics:** Messages sent, response times, PPV conversion rate, revenue per chatter, and shift hours synced with `fanvue-agency-qc`.
+3. **Scripts & Mass Campaigns (`/crm/[ws]/campaigns`):**
+   - Saved script library organized by category/funnel stage with `/` shortcuts in chat.
+   - Mass DM builder targeting smart fan segments with PPV pricing, scheduling, and auto-unsend timers.
+
+---
+
+## Phase 5 — Chatbot Bridge, Billing & Staging Cutover
+
+**Goal:** Complete end-to-end integration with `OmniOFM-Chatbot`, `@omniofm/entitlement`, and production deployment.
+
+1. **Chatbot & Entitlement Integration (`OmniOFM-CRM#1`):**
+   - Implement `POST /api/chatbot/license` (calls `POST /internal/crm/provision` on `OmniOFM-Chatbot` with `X-Omni-Service-Token`).
+   - Implement global bot kill-switch sync (`POST /internal/crm/enabled`).
+   - Implement `GET /api/chatbot/credits` reading balances from `@omniofm/entitlement` (plus CRM seat/plan billing UI at `/crm/[ws]/billing`).
+2. **E2E Verification & Deploy:**
+   - Verify Fanvue OAuth, inbox messaging, Vault PPV, earnings sync, and Chatbot provision/enable/debit flow on staging.
+   - Deploy `crm.omniofm.com` systemd service + Nginx/TLS on VPS.
+
+---
+
+## Immediate Next Steps (Blocked on Client Confirmation)
+
+1. Get **Infloww / CreatorHero** demo login or screenshots from Ryan to finalize Phase 3 inbox/spender layout.
+2. Confirm Phase 2 launch scope (**Fanvue + OmniOFM Chatbot + QC** first vs. Stacked/OnlyFans in v1).
+3. Confirm auth (Google-only vs. email/password for chatters) and CRM billing model in `@omniofm/entitlement`.
