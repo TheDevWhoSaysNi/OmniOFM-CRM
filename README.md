@@ -1,6 +1,8 @@
 # OmniOFM CRM
 
-Multi-tenant web CRM for creator agencies and solo creators. Fanvue-first (metrics, inbox, QC bridge), chatter focus mode, HQ time sync, and holdco webhooks to Twenty via n8n.
+Multi-tenant **chatter / creator ops** web app for agencies and solo creators (inbox, vault, multi-platform, team). Fanvue-first, QC bridge, HQ time sync. **Not** the AI auto-reply product — that is [OmniOFM Chatbot](https://github.com/suncoast-servers/OmniOFM-Chatbot).
+
+**Scope:** [docs/PRODUCT_BOUNDARIES.md](docs/PRODUCT_BOUNDARIES.md) · **Delivery (PWA / tab / extension):** [docs/DELIVERY.md](docs/DELIVERY.md).
 
 Staging: branch `develop` → https://crm-dev.omniofm.com (see [docs/DEV.md](docs/DEV.md)).
 
